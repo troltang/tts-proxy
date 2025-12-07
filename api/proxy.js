@@ -1,26 +1,20 @@
-import fetch from "node-fetch";
-
 export default async function handler(req, res) {
-  const { url } = req.query;
-
-  if (!url) {
-    return res.status(400).send("Missing url parameter");
-  }
+  const target = req.query.url;
+  if (!target) return res.status(400).json({ error: "Missing url parameter" });
 
   try {
-    const response = await fetch(url, {
+    const parsedUrl = new URL(target); // WHATWG URL API
+    // 你可以安全获取 hostname / pathname / searchParams 等
+    const response = await fetch(parsedUrl.href, {
       method: req.method,
-      headers: req.headers,
+      headers: { ...req.headers, host: undefined },
+      body: req.method !== "GET" ? req.body : undefined
     });
 
-    const body = await response.arrayBuffer(); // 支持音频/二进制
-
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Headers", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-    res.setHeader("Content-Type", response.headers.get("content-type") || "application/octet-stream");
-    res.status(200).send(Buffer.from(body));
+    const data = await response.arrayBuffer();
+    response.headers.forEach((v, k) => res.setHeader(k, v));
+    res.status(response.status).send(Buffer.from(data));
   } catch (err) {
-    res.status(500).send("Proxy error: " + err.toString());
+    res.status(500).json({ error: err.message });
   }
 }
